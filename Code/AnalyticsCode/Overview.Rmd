@@ -8,7 +8,99 @@ This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute
 Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
 
 ```{r}
-plot(cars)
+library(ggplot2)
+library(readr)
+library(tidyr)
+library(dplyr)
+
+# Read the CSV file
+data <- read_csv("../../ProcessedData/final_vegePrice0.csv")
+
+# Convert the data from wide to long format
+long_data <- data %>%
+  pivot_longer(cols = starts_with("20"), names_to = "Date", values_to = "Price") %>%
+  mutate(Date = as.Date(Date))
+
+# Plotting all commodities
+ggplot(long_data, aes(x = Date, y = Price, group = Commodity, color = Commodity)) +
+  geom_line() +
+  theme_minimal() +
+  labs(title = "Price Trends of All Commodities",
+       x = "Date",
+       y = "Price") +
+  theme(legend.position="none")
+```
+
+
+
+```{r}
+# Creating multiple plots, one for each category
+plots <- long_data %>%
+  group_by(Category) %>%
+  do(plot = ggplot(., aes(x = Date, y = Price, group = Commodity, color = Commodity)) +
+              geom_line() +
+              theme_minimal() +
+              labs(title = paste("Price Trends in Category:", unique(.$Category)),
+                   x = "Date",
+                   y = "Price") +
+              theme(legend.position="none"))
+
+# Saving the plots to a list
+plot_list <- lapply(plots$plot, print)
+
+```
+
+
+```{r}
+
+# Counting missing values per commodity
+missing_values <- long_data %>%
+  group_by(Commodity) %>%
+  summarize(Missing = sum(is.na(Price)))
+
+# Calculate the total number of dates
+total_dates <- nrow(long_data) / n_distinct(long_data$Commodity)
+
+# Adding percentage of missing data
+missing_values <- missing_values %>%
+  mutate(PercentMissing = (Missing / total_dates) * 100)
+
+# Print the number of missing values and their percentage
+print(missing_values)
+
+```
+
+
+```{r}
+print(long_data)
+```
+
+```{r}
+# Filter out commodities with more than 10% missing data
+commodities_to_keep <- missing_values %>%
+  filter(PercentMissing <= 10) %>%
+  select(Commodity)
+
+# Filter the long_data dataframe to only include the selected commodities
+filtered_long_data <- long_data %>%
+  filter(Commodity %in% commodities_to_keep$Commodity)
+
+```
+
+
+```{r}
+plots <- filtered_long_data %>%
+  group_by(Category) %>%
+  do(plot = ggplot(., aes(x = Date, y = Price, group = Commodity, color = Commodity)) +
+              geom_line() +
+              theme_minimal() +
+              labs(title = paste("Price Trends in Category:", unique(.$Category)),
+                   x = "Date",
+                   y = "Price") +
+              theme(legend.position="none"))
+
+# Saving the plots to a list
+plot_list <- lapply(plots$plot, print)
 ```
 
 Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
